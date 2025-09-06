@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Homework Grade Calculator</title>
+    <style>
+      :root {
+        --bg: #ffffff;
+        --fg: #0f172a;
+        --muted: #64748b;
+        --accent: #1b4d3e;
+        --card: #f8fafc;
+        --ring: #e2e8f0;
+      }
+      * {
+        box-sizing: border-box;
+        font-family: Inter, system-ui, Segoe UI, Roboto, Helvetica, Arial,
+          sans-serif;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--fg);
+        display: grid;
+        place-items: start;
+        padding: 24px;
+      }
+      .wrap {
+        max-width: 760px;
+        width: 100%;
+        margin-inline: auto;
+      }
+      h1 {
+        font-size: 1.25rem;
+        margin: 0 0 8px;
+      }
+      p {
+        margin: 0 0 16px;
+        color: var(--muted);
+      }
+      .panel {
+        background: var(--card);
+        border: 1px solid var(--ring);
+        border-radius: 16px;
+        padding: 16px;
+      }
+      .row {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      input[type="number"] {
+        appearance: textfield;
+        width: 160px;
+        padding: 12px 14px;
+        border-radius: 12px;
+        border: 1px solid var(--ring);
+        font-size: 1rem;
+      }
+      .kpis {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 12px;
+        margin-top: 14px;
+      }
+      .kpi {
+        border: 1px solid var(--ring);
+        border-radius: 16px;
+        padding: 14px;
+        background: #fff;
+      }
+      .tag {
+        display: inline-block;
+        padding: 4px 8px;
+        border-radius: 999px;
+        font-size: 0.75rem;
+        font-weight: 600;
+      }
+      .A {
+        background: #eaf6ef;
+        color: var(--accent);
+      }
+      .B {
+        background: #eef6ff;
+        color: #0b63c8;
+      }
+      .C {
+        background: #fff7e6;
+        color: #c77700;
+      }
+      .D {
+        background: #fff0f0;
+        color: #c02929;
+      }
+      .E {
+        background: #f1f5f9;
+        color: #334155;
+      }
+      .big {
+        font-size: 1.4rem;
+        font-weight: 800;
+        margin: 6px 0;
+      }
+      .small {
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+      textarea {
+        width: 100%;
+        min-height: 120px;
+        resize: vertical;
+        padding: 12px;
+        border-radius: 12px;
+        border: 1px solid var(--ring);
+        background: #fff;
+      }
+      button {
+        border: 0;
+        background: var(--accent);
+        color: #fff;
+        padding: 12px 14px;
+        border-radius: 12px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      .footer {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        margin-top: 12px;
+        flex-wrap: wrap;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>Homework Grade Calculator</h1>
+      <p>
+        Enter total number of homework tasks. Cutoffs are based on: A ≥95%, B
+        80–94%, C 50–79%, D 1–49%, E = 0.
+      </p>
+
+      <div class="panel">
+        <div class="row">
+          <label for="total"><strong>Total tasks (T):</strong></label>
+          <input id="total" type="number" min="0" step="1" value="100" />
+        </div>
+
+        <div class="kpis" id="cards"></div>
+
+        <div class="footer">
+          <button id="copyBtn">Copy Classroom Comment</button>
+          <span id="copied" class="small" aria-live="polite"></span>
+        </div>
+        <div style="margin-top: 10px">
+          <textarea
+            id="comment"
+            placeholder="Generated Google Classroom comment will appear here..."
+          ></textarea>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const $ = (id) => document.getElementById(id);
+
+      function ceil(n) {
+        return Math.ceil(n);
+      }
+      function floor(n) {
+        return Math.floor(n);
+      }
+
+      function buildRanges(T) {
+        T = Math.max(0, Math.floor(+T || 0));
+        const A_min = ceil(0.95 * T);
+        const B_min = ceil(0.8 * T);
+        const C_min = ceil(0.5 * T);
+        const B_max = Math.max(B_min - 1, Math.min(A_min - 1, T));
+        const C_max = Math.max(C_min - 1, Math.min(B_min - 1, T));
+        const D_min = T > 0 ? 1 : 0;
+        const D_max = Math.max(0, Math.min(C_min - 1, T));
+        return {
+          T,
+          A: { min: A_min, max: T },
+          B: { min: B_min, max: Math.max(B_min, B_max) },
+          C: { min: C_min, max: Math.max(C_min, C_max) },
+          D: { min: D_min, max: D_max },
+          E: { min: 0, max: 0 },
+        };
+      }
+
+      function fmtRange(obj) {
+        const { min, max } = obj;
+        if (min === max) return `${min}`;
+        return `${min}–${max}`;
+      }
+
+      function render() {
+        const T = +$("total").value || 0;
+        const r = buildRanges(T);
+        const cards = [
+          {
+            g: "A",
+            txt: "≥95%",
+            main: `≥ ${r.A.min}`,
+            sub: `Range: ${fmtRange(r.A)} of ${r.T}`,
+          },
+          {
+            g: "B",
+            txt: "80–94%",
+            main: `≥ ${r.B.min}`,
+            sub: `Range: ${fmtRange(r.B)} of ${r.T}`,
+          },
+          {
+            g: "C",
+            txt: "50–79%",
+            main: `≥ ${r.C.min}`,
+            sub: `Range: ${fmtRange(r.C)} of ${r.T}`,
+          },
+          {
+            g: "D",
+            txt: "1–49%",
+            main: `≥ ${r.D.min}`,
+            sub: `Range: ${fmtRange(r.D)} of ${r.T}`,
+          },
+          { g: "E", txt: "0%", main: `0`, sub: `Only 0 of ${r.T}` },
+        ];
+        $("cards").innerHTML = cards
+          .map(
+            (c) => `
+      <div class="kpi">
+        <span class="tag ${c.g}">${c.g} • ${c.txt}</span>
+        <div class="big">${c.main} tasks</div>
+        <div class="small">${c.sub}</div>
+      </div>
+    `
+          )
+          .join("");
+
+        // Updated Classroom comment text
+        const comment = `Leaving this here to make calculation of marks during class assignments easier 🙂
+Total homework tasks: ${r.T}
+
+• A (≥95%): At least ${r.A.min} tasks ✅
+• B (80–94%): At least ${r.B.min} tasks
+• C (50–79%): At least ${r.C.min} tasks
+• D (1–49%): At least ${r.D.min} tasks
+• E (0%): 0 tasks`;
+        $("comment").value = comment;
+      }
+
+      $("total").addEventListener("input", render);
+
+      $("copyBtn").addEventListener("click", async () => {
+        const txt = $("comment").value;
+        try {
+          await navigator.clipboard.writeText(txt);
+          $("copied").textContent = "Copied ✅";
+          setTimeout(() => ($("copied").textContent = ""), 1500);
+        } catch {
+          $("copied").textContent = "Press Ctrl/Cmd+C to copy.";
+          $("comment").select();
+        }
+      });
+
+      render();
+    </script>
+  </body>
+</html>
